@@ -1,0 +1,165 @@
+CREATE DATABASE IF NOT EXISTS university;
+USE university;
+
+DROP TABLE IF EXISTS student_faculty;
+DROP TABLE IF EXISTS lecturer_faculty;
+
+DROP TABLE IF EXISTS lecturer;
+DROP TABLE IF EXISTS student;
+
+DROP TABLE IF EXISTS faculty;
+DROP TABLE IF EXISTS dekan;
+CREATE TABLE IF NOT EXISTS faculty
+(
+    id       INT AUTO_INCREMENT NOT NULL UNIQUE,
+    name     VARCHAR(20)        NOT NULL,
+    capacity INT,
+    decanId  INT                NOT NULL UNIQUE,
+    PRIMARY KEY (id)
+
+);
+
+CREATE TABLE IF NOT EXISTS dekan
+(
+    id           INT AUTO_INCREMENT NOT NULL UNIQUE,
+    name         VARCHAR(20)        NOT NULL,
+    surname      VARCHAR(20)        NOT NULL,
+    gender       ENUM ('MALE', 'FEMALE'),
+    phone_number VARCHAR(20),
+    mail         VARCHAR(30),
+    PRIMARY KEY (id)
+);
+
+alter table faculty
+    add constraint fk_decanID
+        FOREIGN KEY (decanId) REFERENCES dekan (id);
+
+CREATE TABLE IF NOT EXISTS student
+(
+    id           INT AUTO_INCREMENT NOT NULL UNIQUE,
+    name         VARCHAR(20)        NOT NULL,
+    surname      VARCHAR(20)        NOT NULL,
+    gender       ENUM ('MALE', 'FEMALE'),
+    phone_number VARCHAR(20),
+    mail         VARCHAR(30),
+
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS student_faculty
+(
+    studentId INT NOT NULL UNIQUE,
+    facultyId INT NOT NULL,
+    FOREIGN KEY (studentId) REFERENCES student (id),
+    FOREIGN KEY (facultyId) REFERENCES faculty (id)
+);
+
+CREATE TABLE IF NOT EXISTS lecturer
+(
+    id           INT NOT NULL UNIQUE,
+    name         VARCHAR(20)        NOT NULL,
+    surname      VARCHAR(20)        NOT NULL,
+    gender       ENUM ('MALE', 'FEMALE'),
+    phone_number VARCHAR(20),
+    mail         VARCHAR(30),
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS lecturer_faculty
+(
+    lecturerId INT NOT NULL,
+    facultyId  INT NOT NULL,
+    FOREIGN KEY (lecturerId) REFERENCES lecturer (id),
+    FOREIGN KEY (facultyId) REFERENCES faculty (id)
+);
+
+CREATE OR REPLACE PROCEDURE insert_student(
+    pname VARCHAR(20),
+    psurname VARCHAR(20),
+    pgender ENUM ('MALE', 'FEMALE'),
+    pphone_number VARCHAR(20),
+    pmail VARCHAR(30),
+    pfaculty_name VARCHAR(20)
+)
+begin
+
+    INSERT INTO student(name, surname, gender, phone_number, mail)
+    VALUES (pname, psurname, pgender, pphone_number, pmail);
+
+    /*SELECT id into v_facultyId FROM faculty WHERE faculty.name = pfaculty_name;
+*/
+    INSERT INTO student_faculty(studentId, facultyId)
+    VALUES (last_insert_id(), (SELECT id  FROM faculty WHERE faculty.name = pfaculty_name));
+
+    UPDATE faculty
+    SET capacity = capacity + 1
+    WHERE id = (SELECT id  FROM faculty WHERE faculty.name = pfaculty_name);
+
+end;
+
+CREATE OR REPLACE  PROCEDURE insert_faculty(
+    pname VARCHAR(20),
+    pdecanId INT
+)
+begin
+    INSERT INTO faculty(name, capacity, decanId)
+    VALUES (pname, 0, pdecanId);
+end;
+
+CREATE OR REPLACE  PROCEDURE insert_dekan(
+    pname VARCHAR(20),
+    psurname VARCHAR(20),
+    pgender ENUM ('MALE', 'FEMALE'),
+    pphone_number VARCHAR(20),
+    pmail VARCHAR(30),
+    pfaculty_name VARCHAR(20)
+)
+begin
+
+    INSERT INTO dekan(name, surname, gender, phone_number, mail)
+    VALUES (pname, psurname, pgender, pphone_number, pmail);
+
+    CALL insert_faculty(pfaculty_name,(SELECT  MAX(id) FROM dekan));
+
+end;
+
+CREATE OR REPLACE  PROCEDURE insert_lecturer(
+    pid INT,
+    pname VARCHAR(20),
+    psurname VARCHAR(20),
+    pgender ENUM ('MALE', 'FEMALE'),
+    pphone_number VARCHAR(20),
+    pmail VARCHAR(30),
+    pfaculty_name VARCHAR(20)
+)
+
+begin
+
+    IF (SELECT MAX(id) FROM lecturer WHERE id = pid) IS NULL THEN
+        INSERT INTO lecturer(id,NAME, SURNAME, GENDER, PHONE_NUMBER, MAIL)
+        VALUES (pid,pname,psurname,pgender,pphone_number,pmail);
+    END IF;
+    INSERT INTO lecturer_faculty(lecturerId, facultyId)
+    VALUES (pid,(SELECT id FROM faculty WHERE faculty.name = pfaculty_name));
+end;
+
+
+
+call insert_dekan('Vahram','Dumanyan','Male','098765432','VDumanyan@gmail.com','kirmat');
+call insert_dekan('Armine','Nalbandyan','Female','098161432','ANalbandyan@gmail.com','matfak');
+
+call insert_lecturer(1,'Karen','Amiryan','MALE','094121501','mhayk.973sdfs779@gmail.com','kirmat');
+call insert_lecturer(2,'Armen','Balyan','MALE','094158501','mhaasyk.973ss779@gmail.com','kirmat');
+call insert_lecturer(1,'Karen','Amiryan','MALE','094121501','mhayk.973sdfs779@gmail.com','matfak');
+
+call insert_student('Hayk','Muradyan','MALE','094461501','mhayk.973779@gmail.com','kirmat');
+call insert_student('Adsf','Gsdasdyan','MALE','094461511','mhayk.9737sdfc79@gmail.com','kirmat');
+call insert_student('Haasdfyk','Adsfyan','FEMALE','094471501','mhayk.973dfs779@gmail.com','matfak');
+call insert_student('Hasdfsdyk','Gadyan','MALE','094461551','mhayk.973779sfd@gmail.com','matfak');
+call insert_student('Haasfykasfds','Madoyan','MALE','094423501','mhayk.9dsf73779@gmail.com','matfak');
+
+SELECT * FROM student
+INNER JOIN student_faculty sf on student.id = sf.studentId
+INNER JOIN lecturer_faculty lf on sf.facultyId = lf.facultyId
+INNER JOIN lecturer l on lf.lecturerId = l.id
+WHERE l.name = 'Karen';
